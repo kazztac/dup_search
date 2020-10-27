@@ -10,7 +10,9 @@ fn main() {
     println!("read_length: {}", read_length);
     //println!("{:?}", buf);
 
-    //TODO: Calculate a hash value by MD5 algorithm.
+    let md5 = md5::compute(buf);
+    println!("md5: {:?}", md5);
+   
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
     //TODO: Calculate a hash value by original algorithm.
