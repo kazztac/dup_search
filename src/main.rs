@@ -1,5 +1,15 @@
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
+
 fn main() {
-    //TODO: Open a fixed file.
+    let file = File::open("./resource/test/hoge.jpg").unwrap();
+    let mut buf_read = BufReader::new(file);
+    let mut buf = Vec::new();
+    let read_length = buf_read.read_to_end(&mut buf).unwrap();
+    println!("read_length: {}", read_length);
+    //println!("{:?}", buf);
+
     //TODO: Calculate a hash value by MD5 algorithm.
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
