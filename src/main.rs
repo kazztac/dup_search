@@ -1,3 +1,4 @@
+use multimap::MultiMap;
 use std::collections::HashMap;
 use std::fs::read_dir;
 use std::fs::File;
@@ -28,13 +29,13 @@ fn calculate_hash_of(file_path: &str) -> String {
     hashed_value
 }
 
-fn calcurate_hashes_of(file_path_list: Vec<&str>) -> HashMap<&str, String> {
-    let mut file_path_and_hash_map = HashMap::new();
+fn calcurate_hashes_of(file_path_list: Vec<&str>) -> MultiMap<String, &str> {
+    let mut hash_and_file_path_map = MultiMap::new();
     for file_path in file_path_list {
         let hash = calculate_hash_of(file_path);
-        file_path_and_hash_map.insert(file_path, hash);
+        hash_and_file_path_map.insert(hash, file_path);
     }
-    file_path_and_hash_map
+    hash_and_file_path_map
 }
 
 fn get_file_path_list_in(folder_path: &str) -> Vec<String> {
@@ -56,11 +57,14 @@ fn get_file_path_list_in(folder_path: &str) -> Vec<String> {
 fn main() {
     let file_path_list = get_file_path_list_in(".");
     let hash_files = calcurate_hashes_of(file_path_list.iter().map(|s| &**s).collect());
-    for hash in hash_files.iter() {
-        println!("{}: {}", hash.1, hash.0);
+    for hash in hash_files {
+        println!("{}: ", hash.0);
+        for file in hash.1 {
+            println!("              {}", file);
+        }
     }
 
-    //TODO: Output all duplicated files.
+    
     //TODO: Use async for all file-io.
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
@@ -73,34 +77,39 @@ mod tests {
     use super::*;
     use apply_method::*;
     use lazy_static::*;
-    use std::collections::HashMap;
 
     lazy_static! {
-        pub static ref ExactFiles: HashMap<&'static str, &'static str> = {
+        pub static ref EXACT_FILES: HashMap<&'static str, &'static str> = {
             HashMap::new()
                 .apply(|it| {
                     it.insert(
                         "./resource/test/test1.png",
                         "01e3a3cdac7ae3023aff5c2c51a6345d",
-                    );
+                    )
                 })
                 .apply(|it| {
                     it.insert(
                         "./resource/test/dirA/test2.png",
                         "bbf39ea418ff93373f7fe25e2d889ebc",
-                    );
+                    )
+                })
+                .apply(|it| {
+                    it.insert(
+                        "./resource/test/dirA/test1_copy.png",
+                        "01e3a3cdac7ae3023aff5c2c51a6345d",
+                    )
                 })
                 .apply(|it| {
                     it.insert(
                         "./resource/test/dirA/dirA2/test3.png",
                         "25d1e8a77689bcf68556ccc8b13c1a66",
-                    );
+                    )
                 })
                 .apply(|it| {
                     it.insert(
                         "./resource/test/dirB/a.txt",
                         "60b725f10c9c85c70d97880dfe8191b3",
-                    );
+                    )
                 })
         };
     }
@@ -108,32 +117,60 @@ mod tests {
     #[test]
     fn test_calculate_hash_of_file_path() {
         let file_path = "./resource/test/test1.png";
-        let exact_hash = ExactFiles.get(file_path).unwrap();
+        let exact_hash = EXACT_FILES.get(file_path).unwrap();
         let hash = calculate_hash_of(file_path);
         assert_eq!(&hash, exact_hash);
     }
 
-    #[test]
-    fn test_calculate_hashes_of_file_path_list() {
-        let files = get_file_path_list_in("./resource/test");
-        let hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect());
-        assert_eq!(hash_files.len(), ExactFiles.len());
-        for exact_file in ExactFiles.iter() {
-            let file = hash_files.get(*exact_file.0).unwrap();
-            assert_eq!(&file, exact_file.1);
-        }
-    }
+    //    #[test]
+    //    fn test_calculate_hashes_of_file_path_list() {
+    //        let files = get_file_path_list_in("./resource/test");
+    //        let hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect());
+    //        assert_eq!(hash_files.len(), EXACT_FILES.len());
+    //        for exact_file in EXACT_FILES.iter() {
+    //            let file = hash_files.get(*exact_file.0).unwrap();
+    //            assert_eq!(&file, exact_file.1);
+    //        }
+    //    }
 
     #[test]
     fn test_get_file_path_list_in_folder() {
         let file_path_list = get_file_path_list_in("./resource/test");
-        let exact_file_path_list = ExactFiles.keys();
+        let exact_file_path_list = EXACT_FILES.keys();
         assert_eq!(file_path_list.len(), exact_file_path_list.len());
         for exact_file_path in exact_file_path_list {
             assert!(file_path_list
                 .iter()
                 .find(|it| it == exact_file_path)
                 .is_some());
+        }
+    }
+
+    #[test]
+    fn test_culcurate_hashes_of_files() {
+        let files = get_file_path_list_in("./resource/test");
+        let mut hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect());
+        let exact_hashes = EXACT_FILES
+            .iter()
+            .map(|it| *it.1)
+            .collect::<Vec<&str>>()
+            .apply(|it| {
+                it.sort();
+                it.dedup();
+            });
+        assert_eq!(hash_files.len(), exact_hashes.len());
+        for exact_hash in exact_hashes {
+            let exact_files = EXACT_FILES
+                .iter()
+                .filter(|it| *it.1 == exact_hash)
+                .map(|it| *it.0)
+                .collect::<Vec<&str>>()
+                .apply(|it| it.sort());
+            let files = hash_files
+                .get_vec_mut(exact_hash)
+                .unwrap()
+                .apply(|it| it.sort());
+            assert_eq!(*files, exact_files);
         }
     }
 }

@@ -9,6 +9,8 @@ edition = "2018"
 [dependencies]
 md5 = "0.7.0"
 sha2 = "0.9.1"
+apply_method = "0.1.0"
+multimap = "0.8.2"
 
 [dev-dependencies]
 lazy_static = "1.4.0"
