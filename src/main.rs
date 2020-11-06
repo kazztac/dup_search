@@ -1,5 +1,4 @@
 use multimap::MultiMap;
-use std::collections::HashMap;
 use std::fs::read_dir;
 use std::fs::File;
 use std::io::prelude::*;
@@ -64,7 +63,6 @@ fn main() {
         }
     }
 
-    
     //TODO: Use async for all file-io.
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
@@ -77,6 +75,7 @@ mod tests {
     use super::*;
     use apply_method::*;
     use lazy_static::*;
+    use std::collections::HashMap;
 
     lazy_static! {
         pub static ref EXACT_FILES: HashMap<&'static str, &'static str> = {
@@ -122,17 +121,6 @@ mod tests {
         assert_eq!(&hash, exact_hash);
     }
 
-    //    #[test]
-    //    fn test_calculate_hashes_of_file_path_list() {
-    //        let files = get_file_path_list_in("./resource/test");
-    //        let hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect());
-    //        assert_eq!(hash_files.len(), EXACT_FILES.len());
-    //        for exact_file in EXACT_FILES.iter() {
-    //            let file = hash_files.get(*exact_file.0).unwrap();
-    //            assert_eq!(&file, exact_file.1);
-    //        }
-    //    }
-
     #[test]
     fn test_get_file_path_list_in_folder() {
         let file_path_list = get_file_path_list_in("./resource/test");
@@ -148,8 +136,6 @@ mod tests {
 
     #[test]
     fn test_culcurate_hashes_of_files() {
-        let files = get_file_path_list_in("./resource/test");
-        let mut hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect());
         let exact_hashes = EXACT_FILES
             .iter()
             .map(|it| *it.1)
@@ -158,6 +144,8 @@ mod tests {
                 it.sort();
                 it.dedup();
             });
+        let files = get_file_path_list_in("./resource/test");
+        let hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect());
         assert_eq!(hash_files.len(), exact_hashes.len());
         for exact_hash in exact_hashes {
             let exact_files = EXACT_FILES
@@ -167,10 +155,11 @@ mod tests {
                 .collect::<Vec<&str>>()
                 .apply(|it| it.sort());
             let files = hash_files
-                .get_vec_mut(exact_hash)
+                .get_vec(exact_hash)
                 .unwrap()
+                .clone()
                 .apply(|it| it.sort());
-            assert_eq!(*files, exact_files);
+            assert_eq!(files, exact_files);
         }
     }
 }
