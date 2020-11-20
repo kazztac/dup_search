@@ -1,2 +1,4 @@
 /target
-resource/
+.idea/
+resource/*
+!resource/test/

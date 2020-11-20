@@ -1,8 +1,12 @@
+use async_std::{prelude::*, task};
 use multimap::MultiMap;
 use std::fs::read_dir;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
+use async_recursion::async_recursion;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[allow(dead_code)]
 fn sha256(b: &Vec<u8>) -> String {
@@ -19,9 +23,6 @@ fn calculate_hash_of(file_path: &str) -> String {
     let mut buf_read = BufReader::new(file);
     let mut buf = Vec::new();
     let _read_length = buf_read.read_to_end(&mut buf).unwrap();
-    //println!("read_length: {}", read_length);
-    //println!("{:?}", buf);
-
     let algorithm = md5;
     //let algorithm = sha256;
     let hashed_value = algorithm(&buf);
@@ -53,6 +54,28 @@ fn get_file_path_list_in(folder_path: &str) -> Vec<String> {
     result
 }
 
+#[async_recursion]
+async fn async_get_file_path_list_in(folder_path: String) -> Result<Vec<String>> {
+    let mut result = vec![];
+    let mut entries = async_std::fs::read_dir(folder_path).await?;
+    while let Some(res) = entries.next().await {
+        let entry = res?;
+        let path = entry.path();
+        if path.is_dir().await {
+            let path = path.to_str().unwrap().to_string();
+            let mut files = task::spawn(async_get_file_path_list_in(path)).await?;
+            result.append(&mut files);
+        } else {
+            result.push(path.as_path().to_str().unwrap().to_string());
+        }
+    }
+    Ok(result)
+}
+
+async fn run() -> Result<()> {
+    Ok(())
+}
+
 fn main() {
     let file_path_list = get_file_path_list_in(".");
     let hash_files = calcurate_hashes_of(file_path_list.iter().map(|s| &**s).collect());
@@ -63,7 +86,10 @@ fn main() {
         }
     }
 
-    //TODO: Use async for all file-io.
+    task::block_on(run());
+
+    //TODO: Use async for file hasing.
+    //TODO: Swich main method to use async functions.
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
     //TODO: Search files recursively from a folder specified in args.
@@ -132,6 +158,21 @@ mod tests {
                 .find(|it| it == exact_file_path)
                 .is_some());
         }
+    }
+
+    #[test]
+    fn test_get_file_path_list_in_folder_async() {
+        task::block_on(async {
+            let file_path_list = async_get_file_path_list_in("./resource/test".to_string()).await.unwrap();
+            let exact_file_path_list = EXACT_FILES.keys();
+            assert_eq!(file_path_list.len(), exact_file_path_list.len());
+            for exact_file_path in exact_file_path_list {
+                assert!(file_path_list
+                    .iter()
+                    .find(|it| it == exact_file_path)
+                    .is_some());
+            }
+        });
     }
 
     #[test]
