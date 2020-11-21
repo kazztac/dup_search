@@ -1,10 +1,10 @@
+use async_recursion::async_recursion;
 use async_std::{prelude::*, task};
 use multimap::MultiMap;
 use std::fs::read_dir;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use async_recursion::async_recursion;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -29,6 +29,17 @@ fn calculate_hash_of(file_path: &str) -> String {
     hashed_value
 }
 
+async fn async_calculate_hash_of(file_path: &str) -> Result<String> {
+    let file = async_std::fs::File::open(file_path).await?;
+    let mut buf_read = async_std::io::BufReader::new(file);
+    let mut buf = Vec::new();
+    let _read_length = buf_read.read_to_end(&mut buf).await?;
+    let algorithm = md5;
+    //let algorithm = sha256;
+    let hashed_value = algorithm(&buf);
+    Ok(hashed_value)
+}
+
 fn calcurate_hashes_of(file_path_list: Vec<&str>) -> MultiMap<String, &str> {
     let mut hash_and_file_path_map = MultiMap::new();
     for file_path in file_path_list {
@@ -36,6 +47,21 @@ fn calcurate_hashes_of(file_path_list: Vec<&str>) -> MultiMap<String, &str> {
         hash_and_file_path_map.insert(hash, file_path);
     }
     hash_and_file_path_map
+}
+
+async fn async_calcurate_hashes_of(file_path_list: Vec<&str>) -> Result<MultiMap<String, &str>> {
+    let mut handles = vec![];
+    for file_path in file_path_list {
+        let cloned_file_path = file_path.to_string();
+        let handle = task::spawn(async move { async_calculate_hash_of(&cloned_file_path).await });
+        handles.push((handle, file_path));
+    }
+    let mut hash_and_file_path_map = MultiMap::new();
+    for (handle, file_path) in handles {
+        let hash = handle.await?;
+        hash_and_file_path_map.insert(hash, file_path);
+    }
+    Ok(hash_and_file_path_map)
 }
 
 fn get_file_path_list_in(folder_path: &str) -> Vec<String> {
@@ -88,7 +114,6 @@ fn main() {
 
     task::block_on(run());
 
-    //TODO: Use async for file hasing.
     //TODO: Swich main method to use async functions.
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
@@ -148,6 +173,16 @@ mod tests {
     }
 
     #[test]
+    fn test_async_calculate_hash_of_file_path() {
+        task::block_on(async {
+            let file_path = "./resource/test/test1.png";
+            let exact_hash = EXACT_FILES.get(file_path).unwrap();
+            let hash = async_calculate_hash_of(file_path).await.unwrap();
+            assert_eq!(&hash, exact_hash);
+        });
+    }
+
+    #[test]
     fn test_get_file_path_list_in_folder() {
         let file_path_list = get_file_path_list_in("./resource/test");
         let exact_file_path_list = EXACT_FILES.keys();
@@ -161,9 +196,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_file_path_list_in_folder_async() {
+    fn test_async_get_file_path_list_in_folder() {
         task::block_on(async {
-            let file_path_list = async_get_file_path_list_in("./resource/test".to_string()).await.unwrap();
+            let file_path_list = async_get_file_path_list_in("./resource/test".to_string())
+                .await
+                .unwrap();
             let exact_file_path_list = EXACT_FILES.keys();
             assert_eq!(file_path_list.len(), exact_file_path_list.len());
             for exact_file_path in exact_file_path_list {
@@ -202,5 +239,40 @@ mod tests {
                 .apply(|it| it.sort());
             assert_eq!(files, exact_files);
         }
+    }
+
+    #[test]
+    fn test_async_culcurate_hashes_of_files() {
+        task::block_on(async {
+            let exact_hashes = EXACT_FILES
+                .iter()
+                .map(|it| *it.1)
+                .collect::<Vec<&str>>()
+                .apply(|it| {
+                    it.sort();
+                    it.dedup();
+                });
+            let files = async_get_file_path_list_in("./resource/test".to_string())
+                .await
+                .unwrap();
+            let hash_files = async_calcurate_hashes_of(files.iter().map(|s| &**s).collect())
+                .await
+                .unwrap();
+            assert_eq!(hash_files.len(), exact_hashes.len());
+            for exact_hash in exact_hashes {
+                let exact_files = EXACT_FILES
+                    .iter()
+                    .filter(|it| *it.1 == exact_hash)
+                    .map(|it| *it.0)
+                    .collect::<Vec<&str>>()
+                    .apply(|it| it.sort());
+                let files = hash_files
+                    .get_vec(exact_hash)
+                    .unwrap()
+                    .clone()
+                    .apply(|it| it.sort());
+                assert_eq!(files, exact_files);
+            }
+        });
     }
 }
