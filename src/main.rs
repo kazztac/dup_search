@@ -16,19 +16,6 @@ fn md5(b: &Vec<u8>) -> String {
     format!("{:x}", md5::compute(b))
 }
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-static mut FILE_COUNT: AtomicUsize = AtomicUsize::new(0);
-fn add_count() {
-    unsafe {
-        FILE_COUNT.fetch_add(1, Ordering::SeqCst);
-    }
-}
-fn print_count() {
-    unsafe {
-        println!("COUNT: {:?}", FILE_COUNT);
-    }
-}
-
 async fn calculate_hash_of(file_path: &str) -> Result<String> {
     let file = File::open(file_path).await?;
     let mut buf_read = BufReader::new(file);
@@ -44,8 +31,6 @@ async fn calcurate_hashes_of(file_path_list: Vec<&str>) -> Result<MultiMap<Strin
     let mut handles = vec![];
     for file_path in file_path_list {
         let cloned_file_path = file_path.to_string();
-        add_count();
-        print_count();
         let handle = task::spawn(async move { calculate_hash_of(&cloned_file_path).await });
         handles.push((handle, file_path));
     }
@@ -87,12 +72,13 @@ async fn run() -> Result<()> {
             println!("              {}", file);
         }
     }
-    print_count();
     Ok(())
 }
 
 fn main() {
+    eprintln!("--- Start ---");
     task::block_on(async { run().await.unwrap() });
+    eprintln!("--- Finish ---");
 
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
