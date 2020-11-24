@@ -231,9 +231,11 @@ dependencies = [
  "apply_method",
  "async-recursion",
  "async-std",
+ "digest",
  "futures",
+ "hex",
  "lazy_static",
- "md5",
+ "md-5",
  "multimap",
  "sha2",
 ]
@@ -396,6 +398,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
+
+[[package]]
 name = "instant"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -444,10 +452,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "md5"
-version = "0.7.0"
+name = "md-5"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+checksum = "7b5a279bb9607f9f53c22d496eade00d138d1bdcccd07d74650387cf94942a15"
+dependencies = [
+ "block-buffer",
+ "digest",
+ "opaque-debug",
+]
 
 [[package]]
 name = "memchr"
