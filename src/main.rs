@@ -30,6 +30,7 @@ async fn calcurate_hashes_of(file_path_list: Vec<&str>) -> Result<MultiMap<Strin
         let cloned_file_path = file_path.to_string();
         let handle =
             task::spawn(async move { calculate_hash_of::<md5::Md5>(&cloned_file_path).await });
+        //task::spawn(async move { calculate_hash_of::<blake3::Hasher>(&cloned_file_path).await });
         handles.push((handle, file_path));
     }
     let mut hash_and_file_path_map = MultiMap::new();
@@ -78,7 +79,6 @@ fn main() {
     task::block_on(async { run().await.unwrap() });
     eprintln!("--- Finish ---");
 
-    //TODO: Add the Blake3 crate.
     //TODO: Read args from command line.
     //TODO: Open a file specified in args.
     //TODO: Search files recursively from a folder specified in args.
