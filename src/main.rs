@@ -8,29 +8,28 @@ use multimap::MultiMap;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-fn hash<D>(b: &Vec<u8>) -> String
-where
-    D: Digest,
-{
-    let mut digest = D::new();
-    digest.update(b);
-    digest.finalize().as_slice().encode_hex()
-}
-
-async fn calculate_hash_of(file_path: &str) -> Result<String> {
+async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
     let file = File::open(file_path).await?;
     let mut buf_read = BufReader::new(file);
-    let mut buf = Vec::new();
-    let _read_length = buf_read.read_to_end(&mut buf).await?;
-    let hashed_value = hash::<md5::Md5>(&buf);
-    Ok(hashed_value)
+    let mut buf = [0u8; 1024];
+    let mut digest = D::new();
+    loop {
+        let read_size = buf_read.read(&mut buf).await?;
+        if read_size <= 0 {
+            break;
+        }
+        digest.update(buf[0..read_size].as_ref());
+    }
+
+    Ok(digest.finalize().as_slice().encode_hex())
 }
 
 async fn calcurate_hashes_of(file_path_list: Vec<&str>) -> Result<MultiMap<String, &str>> {
     let mut handles = vec![];
     for file_path in file_path_list {
         let cloned_file_path = file_path.to_string();
-        let handle = task::spawn(async move { calculate_hash_of(&cloned_file_path).await });
+        let handle =
+            task::spawn(async move { calculate_hash_of::<md5::Md5>(&cloned_file_path).await });
         handles.push((handle, file_path));
     }
     let mut hash_and_file_path_map = MultiMap::new();
@@ -134,7 +133,7 @@ mod tests {
         task::block_on(async {
             let file_path = "./resource/test/test1.png";
             let exact_hash = EXACT_FILES.get(file_path).unwrap();
-            let hash = calculate_hash_of(file_path).await.unwrap();
+            let hash = calculate_hash_of::<md5::Md5>(file_path).await.unwrap();
             assert_eq!(&hash, exact_hash);
         });
     }
