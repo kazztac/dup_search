@@ -3,10 +3,9 @@ use async_std::fs::{read_dir, File};
 use async_std::io::BufReader;
 use async_std::{prelude::*, task};
 use digest::Digest;
+use dup_search::Result;
 use hex::ToHex;
 use multimap::MultiMap;
-
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
     let file = File::open(file_path).await?;
@@ -34,9 +33,13 @@ async fn calcurate_hashes_of(file_path_list: Vec<&str>) -> Result<MultiMap<Strin
         handles.push((handle, file_path));
     }
     let mut hash_and_file_path_map = MultiMap::new();
-    for (handle, file_path) in handles {
+    //for (handle, file_path) in handles {
+    let sum = handles.len();
+    for (i, entry) in handles.into_iter().enumerate() {
+        let (handle, file_path) = entry;
         let hash = handle.await?;
         hash_and_file_path_map.insert(hash, file_path);
+        eprint!("\r{:5} / {:5}", i + 1, sum);
     }
     Ok(hash_and_file_path_map)
 }
@@ -75,14 +78,20 @@ async fn run() -> Result<()> {
 }
 
 fn main() {
-    eprintln!("--- Start ---");
-    task::block_on(async { run().await.unwrap() });
-    eprintln!("--- Finish ---");
+    let args = dup_search::args::parse_args().unwrap();
+    println!("args: {:?}", args);
+    println!("hoge: {}", args.is_present("hoge"));
+    if let Some(v) = args.value_of("directory") {
+        println!("directory: {}", v);
+    }
 
-    //TODO: Read args from command line.
-    //TODO: Open a file specified in args.
+    eprintln!("\n--- Start ---");
+    task::block_on(async { run().await.unwrap() });
+    eprintln!("\n--- Finish ---");
+
     //TODO: Search files recursively from a folder specified in args.
     //TODO: Output result as a specified file format.
+    //TODO: Control the number of files to open taking into ulimit setting.
 }
 
 #[cfg(test)]
