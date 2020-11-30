@@ -4,7 +4,7 @@ use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_v
 use clap::{App, Arg};
 use std::ffi::OsString;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum HashAlgorithm {
     MD5,
     Blake3,
@@ -35,7 +35,7 @@ fn create_app() -> Result<App<'static, 'static>> {
         .arg(
             Arg::from_usage("-a --algorithm 'Hash algorithm'")
                 .possible_values(&["MD5", "Blake3"])
-                .default_value("MD5"),
+                .default_value("Blake3"),
         )
         .arg(Arg::from_usage("[directory] 'Target directory'").default_value("."));
     Ok(app)
@@ -43,10 +43,10 @@ fn create_app() -> Result<App<'static, 'static>> {
 
 pub fn parse_args() -> Result<ProgramArgs> {
     let matches = create_app()?.get_matches();
-    let algorithm = if matches.value_of("algorithm").unwrap() == "Blake3" {
-        HashAlgorithm::Blake3
-    } else {
+    let algorithm = if matches.value_of("algorithm").unwrap() == "MD5" {
         HashAlgorithm::MD5
+    } else {
+        HashAlgorithm::Blake3
     };
     Ok(ProgramArgs {
         hoge: matches.is_present("hoge"),
