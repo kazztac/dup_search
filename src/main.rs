@@ -3,6 +3,7 @@ use async_std::fs::{read_dir, File};
 use async_std::io::BufReader;
 use async_std::{prelude::*, task};
 use digest::Digest;
+use dup_search::args::ProgramArgs;
 use dup_search::Result;
 use hex::ToHex;
 use multimap::MultiMap;
@@ -62,8 +63,8 @@ async fn get_file_path_list_in(folder_path: String) -> Result<Vec<String>> {
     Ok(result)
 }
 
-async fn run() -> Result<()> {
-    let file_path_list = get_file_path_list_in(".".to_string()).await?;
+async fn run(args: &ProgramArgs) -> Result<()> {
+    let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
     let hash_files = calcurate_hashes_of(file_path_list.iter().map(|s| &**s).collect()).await?;
     for hash in hash_files {
         if hash.1.len() < 2 {
@@ -80,16 +81,12 @@ async fn run() -> Result<()> {
 fn main() {
     let args = dup_search::args::parse_args().unwrap();
     println!("args: {:?}", args);
-    println!("hoge: {}", args.is_present("hoge"));
-    if let Some(v) = args.value_of("directory") {
-        println!("directory: {}", v);
-    }
 
     eprintln!("\n--- Start ---");
-    task::block_on(async { run().await.unwrap() });
+    task::block_on(async { run(&args).await.unwrap() });
     eprintln!("\n--- Finish ---");
 
-    //TODO: Search files recursively from a folder specified in args.
+    //TODO: Change algorithm depends on the program parameter.
     //TODO: Output result as a specified file format.
     //TODO: Control the number of files to open taking into ulimit setting.
 }
