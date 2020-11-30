@@ -8,10 +8,29 @@ use dup_search::Result;
 use hex::ToHex;
 use multimap::MultiMap;
 
-async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
+async fn calculate_hash_of_with_arrays<D: Digest>(file_path: &str) -> Result<String> {
     let file = File::open(file_path).await?;
     let mut buf_read = BufReader::new(file);
     let mut buf = [0u8; 1024];
+    let mut digest = D::new();
+    loop {
+        let read_size = buf_read.read(&mut buf).await?;
+        if read_size <= 0 {
+            break;
+        }
+        digest.update(buf[0..read_size].as_ref());
+    }
+
+    Ok(digest.finalize().as_slice().encode_hex())
+}
+
+async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
+    let file = File::open(file_path).await?;
+    let mut buf_read = BufReader::new(file);
+    let mut buf = Vec::with_capacity(1024 * 1024);
+    unsafe {
+        buf.set_len(1024 * 1024);
+    }
     let mut digest = D::new();
     loop {
         let read_size = buf_read.read(&mut buf).await?;
@@ -98,8 +117,9 @@ fn main() {
     task::block_on(async { run(&args).await.unwrap() });
     eprintln!("\n--- Finish ---");
 
-    //TODO: Output result as a specified file format.
+    //TODO: Check the approximate buf size that used in calculate hash method.
     //TODO: Control the number of files to open taking into ulimit setting.
+    //TODO: Output result as a specified file format.
 }
 
 #[cfg(test)]
