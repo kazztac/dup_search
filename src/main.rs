@@ -8,28 +8,25 @@ use dup_search::Result;
 use hex::ToHex;
 use multimap::MultiMap;
 
-async fn calculate_hash_of_with_arrays<D: Digest>(file_path: &str) -> Result<String> {
-    let file = File::open(file_path).await?;
-    let mut buf_read = BufReader::new(file);
-    let mut buf = [0u8; 1024];
-    let mut digest = D::new();
-    loop {
-        let read_size = buf_read.read(&mut buf).await?;
-        if read_size <= 0 {
-            break;
-        }
-        digest.update(buf[0..read_size].as_ref());
-    }
-
-    Ok(digest.finalize().as_slice().encode_hex())
+#[derive(Debug, Clone)]
+struct CalcParam {
+    buf_size: usize,
 }
 
-async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
+impl Default for CalcParam {
+    fn default() -> Self {
+        Self {
+            buf_size: 1024 * 1024,
+        }
+    }
+}
+
+async fn calculate_hash_of<D: Digest>(file_path: &str, param: CalcParam) -> Result<String> {
     let file = File::open(file_path).await?;
     let mut buf_read = BufReader::new(file);
-    let mut buf = Vec::with_capacity(1024 * 1024);
+    let mut buf = Vec::with_capacity(param.buf_size);
     unsafe {
-        buf.set_len(1024 * 1024);
+        buf.set_len(param.buf_size);
     }
     let mut digest = D::new();
     loop {
@@ -37,7 +34,7 @@ async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
         if read_size <= 0 {
             break;
         }
-        digest.update(buf[0..read_size].as_ref());
+        digest.update(buf[..read_size].as_ref());
     }
 
     Ok(digest.finalize().as_slice().encode_hex())
@@ -46,15 +43,19 @@ async fn calculate_hash_of<D: Digest>(file_path: &str) -> Result<String> {
 async fn calcurate_hashes_of(
     algorithm: HashAlgorithm,
     file_path_list: Vec<&str>,
+    param: CalcParam,
 ) -> Result<MultiMap<String, &str>> {
     let mut handles = vec![];
     for file_path in file_path_list {
         let cloned_file_path = file_path.to_string();
+        let cloned_param = param.clone();
         let handle = task::spawn(async move {
             match algorithm {
-                HashAlgorithm::MD5 => calculate_hash_of::<md5::Md5>(&cloned_file_path).await,
+                HashAlgorithm::MD5 => {
+                    calculate_hash_of::<md5::Md5>(&cloned_file_path, cloned_param).await
+                }
                 HashAlgorithm::Blake3 => {
-                    calculate_hash_of::<blake3::Hasher>(&cloned_file_path).await
+                    calculate_hash_of::<blake3::Hasher>(&cloned_file_path, cloned_param).await
                 }
             }
         });
@@ -95,15 +96,18 @@ async fn run(args: &ProgramArgs) -> Result<()> {
     let hash_files = calcurate_hashes_of(
         args.hash_algorithm(),
         file_path_list.iter().map(|s| &**s).collect(),
+        CalcParam {
+            buf_size: 1024 * 1024,
+        },
     )
     .await?;
     for hash in hash_files {
         if hash.1.len() < 2 {
             continue;
         }
-        println!("{}: ", hash.0);
+        async_std::io::stdout().write(format!("{}: ", hash.0).as_bytes());
         for file in hash.1 {
-            println!("              {}", file);
+            async_std::io::stdout().write(format!("              {}", file).as_bytes());
         }
     }
     Ok(())
@@ -117,7 +121,7 @@ fn main() {
     task::block_on(async { run(&args).await.unwrap() });
     eprintln!("\n--- Finish ---");
 
-    //TODO: Check the approximate buf size that used in calculate hash method.
+    //TODO: Use join_all to join all JoinHandlers.
     //TODO: Control the number of files to open taking into ulimit setting.
     //TODO: Output result as a specified file format.
 }
@@ -217,7 +221,9 @@ mod tests {
         task::block_on(async {
             let file_path = "./resource/test/test1.png";
             let exact_hash = EXACT_FILES.get(file_path).unwrap();
-            let hash = calculate_hash_of::<md5::Md5>(file_path).await.unwrap();
+            let hash = calculate_hash_of::<md5::Md5>(file_path, Default::default())
+                .await
+                .unwrap();
             assert_eq!(&hash, exact_hash.get(&HashAlgorithm::MD5).unwrap());
         });
     }
@@ -227,7 +233,7 @@ mod tests {
         task::block_on(async {
             let file_path = "./resource/test/test1.png";
             let exact_hash = EXACT_FILES.get(file_path).unwrap();
-            let hash = calculate_hash_of::<blake3::Hasher>(file_path)
+            let hash = calculate_hash_of::<blake3::Hasher>(file_path, Default::default())
                 .await
                 .unwrap();
             assert_eq!(&hash, exact_hash.get(&HashAlgorithm::Blake3).unwrap());
@@ -264,10 +270,13 @@ mod tests {
             let files = get_file_path_list_in("./resource/test".to_string())
                 .await
                 .unwrap();
-            let hash_files =
-                calcurate_hashes_of(HashAlgorithm::MD5, files.iter().map(|s| &**s).collect())
-                    .await
-                    .unwrap();
+            let hash_files = calcurate_hashes_of(
+                HashAlgorithm::MD5,
+                files.iter().map(|s| &**s).collect(),
+                Default::default(),
+            )
+            .await
+            .unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
                 let exact_files = generate_exact_files(HashAlgorithm::MD5, exact_hash);
@@ -287,10 +296,13 @@ mod tests {
             let files = get_file_path_list_in("./resource/test".to_string())
                 .await
                 .unwrap();
-            let hash_files =
-                calcurate_hashes_of(HashAlgorithm::Blake3, files.iter().map(|s| &**s).collect())
-                    .await
-                    .unwrap();
+            let hash_files = calcurate_hashes_of(
+                HashAlgorithm::Blake3,
+                files.iter().map(|s| &**s).collect(),
+                Default::default(),
+            )
+            .await
+            .unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
                 let exact_files = generate_exact_files(HashAlgorithm::Blake3, exact_hash);
