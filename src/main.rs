@@ -42,9 +42,8 @@ async fn main() -> Result<()> {
     eprintln!("\n--- Finish ---");
     Ok(())
 
+    //TODO: Replace output method to async-log crate.
     //TODO: Move logic to call file_limit to hash mod.
     //TODO: Control the number of files to open taking into ulimit setting.
-    //TODO: Replace output method to async-log crate.
-    //TODO: Review the module construction.
     //TODO: Output result as a specified file format.
 }
