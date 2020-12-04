@@ -11,12 +11,14 @@ use multimap::MultiMap;
 #[derive(Debug, Clone)]
 struct CalcParam {
     buf_size: usize,
+    file_limit: usize,
 }
 
 impl Default for CalcParam {
     fn default() -> Self {
         Self {
             buf_size: 1024 * 1024,
+            file_limit: 1024,
         }
     }
 }
@@ -62,13 +64,13 @@ async fn calcurate_hashes_of(
         handles.push((handle, file_path));
     }
     let mut hash_and_file_path_map = MultiMap::new();
-    //for (handle, file_path) in handles {
     let sum = handles.len();
     for (i, entry) in handles.into_iter().enumerate() {
         let (handle, file_path) = entry;
         let hash = handle.await?;
         hash_and_file_path_map.insert(hash, file_path);
-        eprint!("\r{:5} / {:5}", i + 1, sum);
+        //async_std::io::stdout().write(format!("\r{:5} / {:5}", i + 1, sum).as_bytes());
+        print!("\r{:5} / {:5}", i + 1, sum);
     }
     Ok(hash_and_file_path_map)
 }
@@ -91,13 +93,14 @@ async fn get_file_path_list_in(folder_path: String) -> Result<Vec<String>> {
     Ok(result)
 }
 
-async fn run(args: &ProgramArgs) -> Result<()> {
+async fn run(args: &ProgramArgs, file_limit: usize) -> Result<()> {
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
     let hash_files = calcurate_hashes_of(
         args.hash_algorithm(),
         file_path_list.iter().map(|s| &**s).collect(),
         CalcParam {
             buf_size: 1024 * 1024,
+            file_limit,
         },
     )
     .await?;
@@ -105,9 +108,11 @@ async fn run(args: &ProgramArgs) -> Result<()> {
         if hash.1.len() < 2 {
             continue;
         }
-        async_std::io::stdout().write(format!("{}: ", hash.0).as_bytes());
+        //async_std::io::stdout().write(format!("{}: ", hash.0).as_bytes());
+        println!("{}: ", hash.0);
         for file in hash.1 {
-            async_std::io::stdout().write(format!("              {}", file).as_bytes());
+            //async_std::io::stdout().write(format!("              {}", file).as_bytes());
+            println!("              {}", file);
         }
     }
     Ok(())
@@ -115,14 +120,28 @@ async fn run(args: &ProgramArgs) -> Result<()> {
 
 fn main() {
     let args = dup_search::args::parse_args().unwrap();
-    println!("args: {:?}", args);
+    let file_limit = String::from_utf8_lossy(
+        &std::process::Command::new("ulimit")
+            .arg("-n")
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .parse()
+    .unwrap_or(1024);
+    println!("file_limit: {}, args: {:?}", file_limit, args);
 
     eprintln!("\n--- Start ---");
-    task::block_on(async { run(&args).await.unwrap() });
+    task::block_on(async {
+        let _result = run(&args, file_limit).await;
+    });
     eprintln!("\n--- Finish ---");
 
-    //TODO: Use join_all to join all JoinHandlers.
+    //TODO: Look over the usage of task::spawn.
     //TODO: Control the number of files to open taking into ulimit setting.
+    //TODO: Replace output method to async-log crate.
+    //TODO: Review the module construction.
     //TODO: Output result as a specified file format.
 }
 
