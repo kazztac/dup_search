@@ -21,11 +21,21 @@ mod test {
     use super::*;
 
     #[test]
-    fn test() {
+    #[ignore]
+    fn test_println() {
         async_std::task::block_on(async {
-            async_println!("This is a test").await;
+            async_println!("This is a test.").await;
             async_println!().await;
-            async_println!("This is a test2").await;
+            async_println!("This is a test2.").await;
+        });
+    }
+
+    #[test]
+    #[ignore]
+    fn test_print() {
+        async_std::task::block_on(async {
+            async_print!("This is a test.").await;
+            async_print!("This is a test2.").await;
         });
     }
 }
