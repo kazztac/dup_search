@@ -1,5 +1,4 @@
 use crate::args::HashAlgorithm;
-use crate::async_print;
 use crate::Result;
 use async_std::fs::File;
 use async_std::io::BufReader;
@@ -7,6 +6,7 @@ use async_std::{prelude::*, task};
 use digest::Digest;
 use hex::ToHex;
 use multimap::MultiMap;
+use crate::async_println;
 
 #[derive(Debug, Clone)]
 pub struct HashParam {
@@ -43,10 +43,9 @@ fn get_file_limit() -> usize {
         },
         |v| v,
     )
-    //async_println!("file_limit: {}, args: {:?}", file_limit, args).await;
 }
 
-async fn calculate_hash_of<D: Digest>(file_path: &str, param: HashParam) -> Result<String> {
+async fn calculate_hash_of<D: Digest>(file_path: &str, param: &HashParam) -> Result<String> {
     let file = File::open(file_path).await?;
     let mut buf_read = BufReader::new(file);
     let mut buf = Vec::with_capacity(param.buf_size);
@@ -66,32 +65,44 @@ async fn calculate_hash_of<D: Digest>(file_path: &str, param: HashParam) -> Resu
 }
 
 pub async fn calcurate_hashes_of(
-    file_path_list: Vec<&str>,
-    param: HashParam,
-) -> Result<MultiMap<String, &str>> {
+    file_path_list: &Vec<String>,
+    param: &HashParam,
+) -> Result<MultiMap<String, String>> {
+    let file_limit = get_file_limit();
+    let file_count_at_once = (file_path_list.len() / file_limit) + 1;
+    //async_println!("file_limit: {}\nfile_count: {}\nfile_count_at_once: {}", file_limit, file_path_list.len(), file_count_at_once).await;
     let mut handles = vec![];
-    for file_path in file_path_list {
-        let cloned_file_path = file_path.to_string();
+    for chunked_file_path_list in file_path_list.chunks(file_count_at_once) {
+        let cloned_chunked_file_path_list = chunked_file_path_list
+            .iter()
+            .map(|it| it.clone())
+            .collect::<Vec<String>>();
         let cloned_param = param.clone();
         let handle = task::spawn(async move {
-            match cloned_param.algorithm {
-                HashAlgorithm::MD5 => {
-                    calculate_hash_of::<md5::Md5>(&cloned_file_path, cloned_param).await
+            let mut result = Vec::with_capacity(cloned_chunked_file_path_list.len());
+            for file_path in cloned_chunked_file_path_list {
+                let hash = match &cloned_param.algorithm {
+                    &HashAlgorithm::MD5 => {
+                        calculate_hash_of::<md5::Md5>(&file_path, &cloned_param).await
+                    }
+                    &HashAlgorithm::Blake3 => {
+                        calculate_hash_of::<blake3::Hasher>(&file_path, &cloned_param).await
+                    }
                 }
-                HashAlgorithm::Blake3 => {
-                    calculate_hash_of::<blake3::Hasher>(&cloned_file_path, cloned_param).await
-                }
+                .unwrap();
+                result.push((file_path, hash));
             }
+            result
         });
-        handles.push((handle, file_path));
+        handles.push(handle);
     }
     let mut hash_and_file_path_map = MultiMap::new();
-    let sum = handles.len();
-    for (i, entry) in handles.into_iter().enumerate() {
-        let (handle, file_path) = entry;
-        let hash = handle.await?;
-        hash_and_file_path_map.insert(hash, file_path);
-        async_print!("\r{:5} / {:5}", i + 1, sum).await;
+    for entry in handles {
+        let result = entry.await;
+        for (file_path, hash) in result {
+            hash_and_file_path_map.insert(hash, file_path);
+        }
+        //async_print!("\r{:5} / {:5}", i + 1, sum).await;
     }
     Ok(hash_and_file_path_map)
 }
@@ -170,30 +181,6 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_calculate_hash_of_file_path_with_md5() {
-        task::block_on(async {
-            let file_path = "./resource/test/test1.png";
-            let exact_hash = EXACT_FILES.get(file_path).unwrap();
-            let hash = calculate_hash_of::<md5::Md5>(file_path, Default::default())
-                .await
-                .unwrap();
-            assert_eq!(&hash, exact_hash.get(&HashAlgorithm::MD5).unwrap());
-        });
-    }
-
-    #[test]
-    fn test_calculate_hash_of_file_path_with_blake3() {
-        task::block_on(async {
-            let file_path = "./resource/test/test1.png";
-            let exact_hash = EXACT_FILES.get(file_path).unwrap();
-            let hash = calculate_hash_of::<blake3::Hasher>(file_path, Default::default())
-                .await
-                .unwrap();
-            assert_eq!(&hash, exact_hash.get(&HashAlgorithm::Blake3).unwrap());
-        });
-    }
-
     fn generate_exact_hashes(algorithm: HashAlgorithm) -> Vec<&'static str> {
         EXACT_FILES
             .iter()
@@ -218,6 +205,30 @@ mod tests {
     }
 
     #[test]
+    fn test_calculate_hash_of_file_path_with_md5() {
+        task::block_on(async {
+            let file_path = "./resource/test/test1.png";
+            let exact_hash = EXACT_FILES.get(file_path).unwrap();
+            let hash = calculate_hash_of::<md5::Md5>(file_path, &Default::default())
+                .await
+                .unwrap();
+            assert_eq!(&hash, exact_hash.get(&HashAlgorithm::MD5).unwrap());
+        });
+    }
+
+    #[test]
+    fn test_calculate_hash_of_file_path_with_blake3() {
+        task::block_on(async {
+            let file_path = "./resource/test/test1.png";
+            let exact_hash = EXACT_FILES.get(file_path).unwrap();
+            let hash = calculate_hash_of::<blake3::Hasher>(file_path, &Default::default())
+                .await
+                .unwrap();
+            assert_eq!(&hash, exact_hash.get(&HashAlgorithm::Blake3).unwrap());
+        });
+    }
+
+    #[test]
     fn test_culcurate_hashes_of_files_with_md5() {
         task::block_on(async {
             let exact_hashes = generate_exact_hashes(HashAlgorithm::MD5);
@@ -225,9 +236,7 @@ mod tests {
                 .await
                 .unwrap();
             let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::MD5);
-            let hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect(), param)
-                .await
-                .unwrap();
+            let hash_files = calcurate_hashes_of(&files, &param).await.unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
                 let exact_files = generate_exact_files(HashAlgorithm::MD5, exact_hash);
@@ -240,6 +249,7 @@ mod tests {
             }
         });
     }
+
     #[test]
     fn test_culcurate_hashes_of_files_with_blake3() {
         task::block_on(async {
@@ -248,12 +258,7 @@ mod tests {
                 .await
                 .unwrap();
             let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::Blake3);
-            let hash_files = calcurate_hashes_of(
-                files.iter().map(|s| &**s).collect(),
-                param
-            )
-            .await
-            .unwrap();
+            let hash_files = calcurate_hashes_of(&files, &param).await.unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
                 let exact_files = generate_exact_files(HashAlgorithm::Blake3, exact_hash);
@@ -266,6 +271,7 @@ mod tests {
             }
         });
     }
+
     #[test]
     #[ignore]
     fn test_get_file_limit() {

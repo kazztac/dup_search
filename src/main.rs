@@ -12,11 +12,7 @@ async fn main() -> Result<()> {
     };
     async_println!("\n--- Start ---").await;
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
-    let hash_files = calcurate_hashes_of(
-        file_path_list.iter().map(|s| &**s).collect(),
-        hash_param,
-    )
-    .await?;
+    let hash_files = calcurate_hashes_of(&file_path_list, &hash_param).await?;
     for hash in hash_files {
         if hash.1.len() < 2 {
             continue;
@@ -29,7 +25,6 @@ async fn main() -> Result<()> {
     async_println!("\n--- Finish ---").await;
     Ok(())
 
-    //TODO: Control the number of files to open taking into ulimit setting.
-    //TODO: Use channel to nofity the results of each tasks.
+    //TODO: Use channel to nofity the progress of each tasks by using Option<mpsc>.
     //TODO: Output result as a specified file format.
 }
