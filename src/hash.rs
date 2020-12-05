@@ -10,12 +10,14 @@ use multimap::MultiMap;
 
 #[derive(Debug, Clone)]
 pub struct HashParam {
+    pub algorithm: HashAlgorithm,
     pub buf_size: usize,
 }
 
 impl Default for HashParam {
     fn default() -> Self {
         Self {
+            algorithm: HashAlgorithm::Blake3,
             buf_size: 1024 * 1024,
         }
     }
@@ -64,7 +66,6 @@ async fn calculate_hash_of<D: Digest>(file_path: &str, param: HashParam) -> Resu
 }
 
 pub async fn calcurate_hashes_of(
-    algorithm: HashAlgorithm,
     file_path_list: Vec<&str>,
     param: HashParam,
 ) -> Result<MultiMap<String, &str>> {
@@ -73,7 +74,7 @@ pub async fn calcurate_hashes_of(
         let cloned_file_path = file_path.to_string();
         let cloned_param = param.clone();
         let handle = task::spawn(async move {
-            match algorithm {
+            match cloned_param.algorithm {
                 HashAlgorithm::MD5 => {
                     calculate_hash_of::<md5::Md5>(&cloned_file_path, cloned_param).await
                 }
@@ -223,13 +224,10 @@ mod tests {
             let files = get_file_path_list_in("./resource/test".to_string())
                 .await
                 .unwrap();
-            let hash_files = calcurate_hashes_of(
-                HashAlgorithm::MD5,
-                files.iter().map(|s| &**s).collect(),
-                Default::default(),
-            )
-            .await
-            .unwrap();
+            let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::MD5);
+            let hash_files = calcurate_hashes_of(files.iter().map(|s| &**s).collect(), param)
+                .await
+                .unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
                 let exact_files = generate_exact_files(HashAlgorithm::MD5, exact_hash);
@@ -249,10 +247,10 @@ mod tests {
             let files = get_file_path_list_in("./resource/test".to_string())
                 .await
                 .unwrap();
+            let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::Blake3);
             let hash_files = calcurate_hashes_of(
-                HashAlgorithm::Blake3,
                 files.iter().map(|s| &**s).collect(),
-                Default::default(),
+                param
             )
             .await
             .unwrap();
