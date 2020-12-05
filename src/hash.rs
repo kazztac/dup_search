@@ -1,4 +1,5 @@
 use crate::args::HashAlgorithm;
+use crate::async_print;
 use crate::Result;
 use async_std::fs::File;
 use async_std::io::BufReader;
@@ -6,21 +7,41 @@ use async_std::{prelude::*, task};
 use digest::Digest;
 use hex::ToHex;
 use multimap::MultiMap;
-use crate::async_print;
 
 #[derive(Debug, Clone)]
 pub struct HashParam {
     pub buf_size: usize,
-    pub file_limit: usize,
 }
 
 impl Default for HashParam {
     fn default() -> Self {
         Self {
             buf_size: 1024 * 1024,
-            file_limit: 1024,
         }
     }
+}
+
+fn get_file_limit() -> usize {
+    String::from_utf8_lossy(
+        &std::process::Command::new("ulimit")
+            .arg("-n")
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .parse::<usize>()
+    .map_or_else(
+        |e| {
+            println!(
+                "As couldn't get file limit value, use default value. Error: {}",
+                e
+            );
+            1024usize
+        },
+        |v| v,
+    )
+    //async_println!("file_limit: {}, args: {:?}", file_limit, args).await;
 }
 
 async fn calculate_hash_of<D: Digest>(file_path: &str, param: HashParam) -> Result<String> {
@@ -246,5 +267,11 @@ mod tests {
                 assert_eq!(files, exact_files);
             }
         });
+    }
+    #[test]
+    #[ignore]
+    fn test_get_file_limit() {
+        let file_limit = get_file_limit();
+        println!("file_limit: {}", file_limit);
     }
 }

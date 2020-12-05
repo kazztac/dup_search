@@ -6,18 +6,6 @@ use dup_search::Result;
 #[async_std::main]
 async fn main() -> Result<()> {
     let args = dup_search::args::parse_args().unwrap();
-    let file_limit = String::from_utf8_lossy(
-        &std::process::Command::new("ulimit")
-            .arg("-n")
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .trim()
-    .parse()
-    .unwrap_or(1024);
-    async_println!("file_limit: {}, args: {:?}", file_limit, args).await;
-
     async_println!("\n--- Start ---").await;
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
     let hash_files = calcurate_hashes_of(
@@ -25,7 +13,6 @@ async fn main() -> Result<()> {
         file_path_list.iter().map(|s| &**s).collect(),
         HashParam {
             buf_size: 1024 * 1024,
-            file_limit,
         },
     )
     .await?;
@@ -41,7 +28,8 @@ async fn main() -> Result<()> {
     async_println!("\n--- Finish ---").await;
     Ok(())
 
-    //TODO: Move logic to call file_limit to hash mod.
+    //TODO: Reconstruct Calc Param Structure.
     //TODO: Control the number of files to open taking into ulimit setting.
+    //TODO: Use channel to nofity the results of each tasks.
     //TODO: Output result as a specified file format.
 }
