@@ -6,6 +6,7 @@ use async_std::{prelude::*, task};
 use digest::Digest;
 use hex::ToHex;
 use multimap::MultiMap;
+use crate::async_print;
 
 #[derive(Debug, Clone)]
 pub struct HashParam {
@@ -68,8 +69,7 @@ pub async fn calcurate_hashes_of(
         let (handle, file_path) = entry;
         let hash = handle.await?;
         hash_and_file_path_map.insert(hash, file_path);
-        //async_std::io::stdout().write(format!("\r{:5} / {:5}", i + 1, sum).as_bytes());
-        print!("\r{:5} / {:5}", i + 1, sum);
+        async_print!("\r{:5} / {:5}", i + 1, sum).await;
     }
     Ok(hash_and_file_path_map)
 }

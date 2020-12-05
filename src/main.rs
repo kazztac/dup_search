@@ -1,3 +1,4 @@
+use dup_search::async_println;
 use dup_search::hash::{calcurate_hashes_of, HashParam};
 use dup_search::util::get_file_path_list_in;
 use dup_search::Result;
@@ -15,9 +16,9 @@ async fn main() -> Result<()> {
     .trim()
     .parse()
     .unwrap_or(1024);
-    println!("file_limit: {}, args: {:?}", file_limit, args);
+    async_println!("file_limit: {}, args: {:?}", file_limit, args).await;
 
-    eprintln!("\n--- Start ---");
+    async_println!("\n--- Start ---").await;
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
     let hash_files = calcurate_hashes_of(
         args.hash_algorithm(),
@@ -32,17 +33,14 @@ async fn main() -> Result<()> {
         if hash.1.len() < 2 {
             continue;
         }
-        //async_std::io::stdout().write(format!("{}: ", hash.0).as_bytes());
-        println!("{}: ", hash.0);
+        async_println!("{}: ", hash.0).await;
         for file in hash.1 {
-            //async_std::io::stdout().write(format!("              {}", file).as_bytes());
-            println!("              {}", file);
+            async_println!("              {}", file).await;
         }
     }
-    eprintln!("\n--- Finish ---");
+    async_println!("\n--- Finish ---").await;
     Ok(())
 
-    //TODO: Replace output method to async-log crate.
     //TODO: Move logic to call file_limit to hash mod.
     //TODO: Control the number of files to open taking into ulimit setting.
     //TODO: Output result as a specified file format.
