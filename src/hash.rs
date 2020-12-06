@@ -88,7 +88,6 @@ pub async fn calcurate_hashes_of(
 ) -> Result<MultiMap<String, String>> {
     let file_limit = get_file_limit();
     let file_count_at_once = (file_path_list.len() / file_limit) + 1;
-    //async_println!("file_limit: {}\nfile_count: {}\nfile_count_at_once: {}", file_limit, file_path_list.len(), file_count_at_once).await;
     let mut handles = vec![];
     for chunked_file_path_list in file_path_list.chunks(file_count_at_once) {
         let cloned_chunked_file_path_list = chunked_file_path_list

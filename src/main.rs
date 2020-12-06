@@ -14,7 +14,6 @@ async fn main() -> Result<()> {
         algorithm: args.hash_algorithm(),
         buf_size: 1024 * 1024,
     };
-    async_println!("\n--- Start ---").await;
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
     let total = file_path_list.len();
     let (tx, mut rx) = mpsc::unbounded();
@@ -39,7 +38,6 @@ async fn main() -> Result<()> {
             async_println!("              {}", file).await;
         }
     }
-    async_println!("\n--- Finish ---").await;
     Ok(())
 
     //TODO: Output result as a specified file format.
