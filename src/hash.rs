@@ -4,6 +4,8 @@ use async_std::fs::File;
 use async_std::io::BufReader;
 use async_std::{prelude::*, task};
 use digest::Digest;
+use futures::channel::mpsc;
+use futures::SinkExt;
 use hex::ToHex;
 use multimap::MultiMap;
 
@@ -82,6 +84,7 @@ async fn calculate_hashes_of_internal(
 pub async fn calcurate_hashes_of(
     file_path_list: &Vec<String>,
     param: &HashParam,
+    progress_sender: Option<mpsc::UnboundedSender<Result<usize>>>,
 ) -> Result<MultiMap<String, String>> {
     let file_limit = get_file_limit();
     let file_count_at_once = (file_path_list.len() / file_limit) + 1;
@@ -102,10 +105,13 @@ pub async fn calcurate_hashes_of(
     let mut hash_and_file_path_map = MultiMap::new();
     for handle in handles {
         let result = handle.await;
+        if let Some(sender) = &progress_sender {
+            let mut sender = sender.clone();
+            sender.send(Ok(result.len())).await?;
+        }
         for (file_path, hash) in result {
             hash_and_file_path_map.insert(hash, file_path);
         }
-        //async_print!("\r{:5} / {:5}", i + 1, sum).await;
     }
     Ok(hash_and_file_path_map)
 }
@@ -243,7 +249,8 @@ mod tests {
             for exact_item in EXACT_FILES.iter() {
                 let exact_file = exact_item.0;
                 let exact_hash = exact_item.1.get(&HashAlgorithm::MD5).unwrap();
-                let (result_file, result_hash) = results.iter().find(|it| &it.0 == *exact_file).unwrap();
+                let (result_file, result_hash) =
+                    results.iter().find(|it| &it.0 == *exact_file).unwrap();
                 assert_eq!(result_file, exact_file);
                 assert_eq!(result_hash, exact_hash);
             }
@@ -262,7 +269,8 @@ mod tests {
             for exact_item in EXACT_FILES.iter() {
                 let exact_file = exact_item.0;
                 let exact_hash = exact_item.1.get(&HashAlgorithm::Blake3).unwrap();
-                let (result_file, result_hash) = results.iter().find(|it| &it.0 == *exact_file).unwrap();
+                let (result_file, result_hash) =
+                    results.iter().find(|it| &it.0 == *exact_file).unwrap();
                 assert_eq!(result_file, exact_file);
                 assert_eq!(result_hash, exact_hash);
             }
@@ -277,7 +285,39 @@ mod tests {
                 .await
                 .unwrap();
             let param = HashParam::default();
-            let hash_files = calcurate_hashes_of(&files, &param).await.unwrap();
+            let hash_files = calcurate_hashes_of(&files, &param, None).await.unwrap();
+            assert_eq!(hash_files.len(), exact_hashes.len());
+            for exact_hash in exact_hashes {
+                let exact_files = generate_exact_files(HashAlgorithm::Blake3, exact_hash);
+                let files = hash_files
+                    .get_vec(exact_hash)
+                    .unwrap()
+                    .clone()
+                    .apply(|it| it.sort());
+                assert_eq!(files, exact_files);
+            }
+        });
+    }
+
+    #[test]
+    fn test_culcurate_hashes_of_files_with_progress_check() {
+        task::block_on(async {
+            let exact_hashes = generate_exact_hashes(HashAlgorithm::Blake3);
+            let files = get_file_path_list_in("./resource/test".to_string())
+                .await
+                .unwrap();
+            let param = HashParam::default();
+            let (tx, mut rx) = mpsc::unbounded();
+            let handle =
+                task::spawn(async move { calcurate_hashes_of(&files, &param, Some(tx)).await });
+            let mut progress_count = 0;
+            while let Some(event) = rx.next().await {
+                let recv_count = event.unwrap();
+                println!("Recv: {}", recv_count);
+                progress_count += recv_count;
+            }
+            assert_eq!(progress_count, EXACT_FILES.len());
+            let hash_files = handle.await.unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
                 let exact_files = generate_exact_files(HashAlgorithm::Blake3, exact_hash);
