@@ -6,7 +6,6 @@ use async_std::{prelude::*, task};
 use digest::Digest;
 use hex::ToHex;
 use multimap::MultiMap;
-use crate::async_println;
 
 #[derive(Debug, Clone)]
 pub struct HashParam {
@@ -64,6 +63,24 @@ async fn calculate_hash_of<D: Digest>(file_path: &str, param: &HashParam) -> Res
     Ok(digest.finalize().as_slice().encode_hex())
 }
 
+async fn calculate_hashes_of_internal(
+    file_path_list: Vec<String>,
+    param: HashParam,
+) -> Vec<(String, String)> {
+    let mut result = Vec::with_capacity(file_path_list.len());
+    for file_path in file_path_list {
+        let hash = match &param.algorithm {
+            &HashAlgorithm::MD5 => calculate_hash_of::<md5::Md5>(&file_path, &param).await,
+            &HashAlgorithm::Blake3 => {
+                calculate_hash_of::<blake3::Hasher>(&file_path, &param).await
+            }
+        }
+        .unwrap();
+        result.push((file_path, hash));
+    }
+    result
+}
+
 pub async fn calcurate_hashes_of(
     file_path_list: &Vec<String>,
     param: &HashParam,
@@ -78,27 +95,15 @@ pub async fn calcurate_hashes_of(
             .map(|it| it.clone())
             .collect::<Vec<String>>();
         let cloned_param = param.clone();
-        let handle = task::spawn(async move {
-            let mut result = Vec::with_capacity(cloned_chunked_file_path_list.len());
-            for file_path in cloned_chunked_file_path_list {
-                let hash = match &cloned_param.algorithm {
-                    &HashAlgorithm::MD5 => {
-                        calculate_hash_of::<md5::Md5>(&file_path, &cloned_param).await
-                    }
-                    &HashAlgorithm::Blake3 => {
-                        calculate_hash_of::<blake3::Hasher>(&file_path, &cloned_param).await
-                    }
-                }
-                .unwrap();
-                result.push((file_path, hash));
-            }
-            result
-        });
+        let handle = task::spawn(calculate_hashes_of_internal(
+            cloned_chunked_file_path_list,
+            cloned_param,
+        ));
         handles.push(handle);
     }
     let mut hash_and_file_path_map = MultiMap::new();
-    for entry in handles {
-        let result = entry.await;
+    for handle in handles {
+        let result = handle.await;
         for (file_path, hash) in result {
             hash_and_file_path_map.insert(hash, file_path);
         }
