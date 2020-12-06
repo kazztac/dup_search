@@ -40,5 +40,7 @@ async fn main() -> Result<()> {
     }
     Ok(())
 
+    //TODO: Retrieve the progress count process to indipendent async method, and back
+    //calcurate_hashes_of method to main method.
     //TODO: Output result as a specified file format.
 }
