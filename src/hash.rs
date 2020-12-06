@@ -71,9 +71,7 @@ async fn calculate_hashes_of_internal(
     for file_path in file_path_list {
         let hash = match &param.algorithm {
             &HashAlgorithm::MD5 => calculate_hash_of::<md5::Md5>(&file_path, &param).await,
-            &HashAlgorithm::Blake3 => {
-                calculate_hash_of::<blake3::Hasher>(&file_path, &param).await
-            }
+            &HashAlgorithm::Blake3 => calculate_hash_of::<blake3::Hasher>(&file_path, &param).await,
         }
         .unwrap();
         result.push((file_path, hash));
@@ -234,35 +232,51 @@ mod tests {
     }
 
     #[test]
-    fn test_culcurate_hashes_of_files_with_md5() {
+    fn test_calculate_hashes_of_internal_md5() {
         task::block_on(async {
-            let exact_hashes = generate_exact_hashes(HashAlgorithm::MD5);
             let files = get_file_path_list_in("./resource/test".to_string())
                 .await
                 .unwrap();
             let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::MD5);
-            let hash_files = calcurate_hashes_of(&files, &param).await.unwrap();
-            assert_eq!(hash_files.len(), exact_hashes.len());
-            for exact_hash in exact_hashes {
-                let exact_files = generate_exact_files(HashAlgorithm::MD5, exact_hash);
-                let files = hash_files
-                    .get_vec(exact_hash)
-                    .unwrap()
-                    .clone()
-                    .apply(|it| it.sort());
-                assert_eq!(files, exact_files);
+            let results = calculate_hashes_of_internal(files, param).await;
+            assert_eq!(results.len(), EXACT_FILES.len());
+            for exact_item in EXACT_FILES.iter() {
+                let exact_file = exact_item.0;
+                let exact_hash = exact_item.1.get(&HashAlgorithm::MD5).unwrap();
+                let (result_file, result_hash) = results.iter().find(|it| &it.0 == *exact_file).unwrap();
+                assert_eq!(result_file, exact_file);
+                assert_eq!(result_hash, exact_hash);
             }
         });
     }
 
     #[test]
-    fn test_culcurate_hashes_of_files_with_blake3() {
+    fn test_calculate_hashes_of_internal_blake3() {
+        task::block_on(async {
+            let files = get_file_path_list_in("./resource/test".to_string())
+                .await
+                .unwrap();
+            let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::Blake3);
+            let results = calculate_hashes_of_internal(files, param).await;
+            assert_eq!(results.len(), EXACT_FILES.len());
+            for exact_item in EXACT_FILES.iter() {
+                let exact_file = exact_item.0;
+                let exact_hash = exact_item.1.get(&HashAlgorithm::Blake3).unwrap();
+                let (result_file, result_hash) = results.iter().find(|it| &it.0 == *exact_file).unwrap();
+                assert_eq!(result_file, exact_file);
+                assert_eq!(result_hash, exact_hash);
+            }
+        });
+    }
+
+    #[test]
+    fn test_culcurate_hashes_of_files() {
         task::block_on(async {
             let exact_hashes = generate_exact_hashes(HashAlgorithm::Blake3);
             let files = get_file_path_list_in("./resource/test".to_string())
                 .await
                 .unwrap();
-            let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::Blake3);
+            let param = HashParam::default();
             let hash_files = calcurate_hashes_of(&files, &param).await.unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
             for exact_hash in exact_hashes {
