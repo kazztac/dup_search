@@ -1,11 +1,22 @@
 use async_std::task;
-use dup_search::async_print;
 use dup_search::async_println;
 use dup_search::hash::{calcurate_hashes_of, HashParam};
 use dup_search::util::get_file_path_list_in;
 use dup_search::Result;
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
+use mpsc::UnboundedReceiver;
+
+async fn print_progress(mut rx: UnboundedReceiver<usize>, total: usize) {
+    let mut progress_count = 0;
+    while let Some(recv_count) = rx.next().await {
+        progress_count += recv_count;
+        //async_print!("\r{:5} / {:5}", progress_count, total).await;
+        print!("\r{:5} / {:5}", progress_count, total);
+    }
+    //async_println!().await;
+    println!();
+}
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -15,20 +26,11 @@ async fn main() -> Result<()> {
         buf_size: 1024 * 1024,
     };
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
-    let total = file_path_list.len();
-    let (tx, mut rx) = mpsc::unbounded();
-    let handle =
-        task::spawn(
-            async move { calcurate_hashes_of(&file_path_list, &hash_param, Some(tx)).await },
-        );
-    let mut progress_count = 0;
-    while let Some(event) = rx.next().await {
-        progress_count += event.unwrap();
-        async_print!("\r{:5} / {:5}", progress_count, total).await;
-    }
-    async_println!().await;
-
-    let hash_files = handle.await.unwrap();
+    let (tx, rx) = mpsc::unbounded();
+    task::spawn(print_progress(rx, file_path_list.len()));
+    let hash_files = calcurate_hashes_of(&file_path_list, &hash_param, Some(tx))
+        .await
+        .unwrap();
     for hash in hash_files {
         if hash.1.len() < 2 {
             continue;
@@ -40,7 +42,5 @@ async fn main() -> Result<()> {
     }
     Ok(())
 
-    //TODO: Retrieve the progress count process to indipendent async method, and back
-    //calcurate_hashes_of method to main method.
     //TODO: Output result as a specified file format.
 }

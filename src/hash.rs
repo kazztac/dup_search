@@ -84,7 +84,7 @@ async fn calculate_hashes_of_internal(
 pub async fn calcurate_hashes_of(
     file_path_list: &Vec<String>,
     param: &HashParam,
-    progress_sender: Option<mpsc::UnboundedSender<Result<usize>>>,
+    progress_sender: Option<mpsc::UnboundedSender<usize>>,
 ) -> Result<MultiMap<String, String>> {
     let file_limit = get_file_limit();
     let file_count_at_once = (file_path_list.len() / file_limit) + 1;
@@ -106,7 +106,7 @@ pub async fn calcurate_hashes_of(
         let result = handle.await;
         if let Some(sender) = &progress_sender {
             let mut sender = sender.clone();
-            sender.send(Ok(result.len())).await?;
+            sender.send(result.len()).await?;
         }
         for (file_path, hash) in result {
             hash_and_file_path_map.insert(hash, file_path);
@@ -310,8 +310,7 @@ mod tests {
             let handle =
                 task::spawn(async move { calcurate_hashes_of(&files, &param, Some(tx)).await });
             let mut progress_count = 0;
-            while let Some(event) = rx.next().await {
-                let recv_count = event.unwrap();
+            while let Some(recv_count) = rx.next().await {
                 println!("Recv: {}", recv_count);
                 progress_count += recv_count;
             }

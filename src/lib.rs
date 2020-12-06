@@ -31,7 +31,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_print() {
         async_std::task::block_on(async {
             async_print!("This is a test.").await;
