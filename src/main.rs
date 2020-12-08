@@ -11,11 +11,9 @@ async fn print_progress(mut rx: UnboundedReceiver<usize>, total: usize) {
     let mut progress_count = 0;
     while let Some(recv_count) = rx.next().await {
         progress_count += recv_count;
-        //async_print!("\r{:5} / {:5}", progress_count, total).await;
-        eprint!("\r{:5} / {:5}", progress_count, total);
+        print!("\r{:5} / {:5}", progress_count, total);
     }
-    //async_println!().await;
-    eprintln!();
+    println!();
 }
 
 #[async_std::main]
