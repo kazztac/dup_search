@@ -10,11 +10,19 @@ pub enum HashAlgorithm {
     Blake3,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum OutputFormat {
+    JSON,
+    TOML,
+    YAML,
+}
+
 #[derive(Debug)]
 pub struct ProgramArgs {
     hoge: bool,
     directory: String,
     algorithm: HashAlgorithm,
+    output_format: OutputFormat,
 }
 
 impl ProgramArgs {
@@ -27,6 +35,9 @@ impl ProgramArgs {
     pub fn hash_algorithm(&self) -> HashAlgorithm {
         self.algorithm
     }
+    pub fn output_format(&self) -> OutputFormat {
+        self.output_format
+    }
 }
 
 fn create_app() -> Result<App<'static, 'static>> {
@@ -37,21 +48,31 @@ fn create_app() -> Result<App<'static, 'static>> {
                 .possible_values(&["MD5", "Blake3"])
                 .default_value("Blake3"),
         )
+        .arg(
+            Arg::from_usage("-f --format 'Output Format'")
+                .possible_values(&["json", "toml", "yaml"])
+                .default_value("json"),
+        )
         .arg(Arg::from_usage("[directory] 'Target directory'").default_value("."));
     Ok(app)
 }
 
 pub fn parse_args() -> Result<ProgramArgs> {
     let matches = create_app()?.get_matches();
-    let algorithm = if matches.value_of("algorithm").unwrap() == "MD5" {
-        HashAlgorithm::MD5
-    } else {
-        HashAlgorithm::Blake3
+    let algorithm = match matches.value_of("algorithm").unwrap() {
+        "MD5" => HashAlgorithm::MD5,
+        _ => HashAlgorithm::Blake3,
+    };
+    let output_format = match matches.value_of("format").unwrap() {
+        "yaml" => OutputFormat::YAML,
+        "toml" => OutputFormat::TOML,
+        _ => OutputFormat::JSON,
     };
     Ok(ProgramArgs {
         hoge: matches.is_present("hoge"),
         directory: matches.value_of("directory").unwrap().to_string(),
         algorithm,
+        output_format,
     })
 }
 
