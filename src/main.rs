@@ -26,12 +26,16 @@ async fn main() -> Result<()> {
         buf_size: 1024 * 1024,
     };
     let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
-    let (tx, rx) = mpsc::unbounded();
-    task::spawn(print_progress(rx, file_path_list.len()));
-    let hash_files = calcurate_hashes_of(&file_path_list, &hash_param, Some(tx))
+    let progress_sender = if args.is_verbose() {
+        let (tx, rx) = mpsc::unbounded();
+        task::spawn(print_progress(rx, file_path_list.len()));
+        Some(tx)
+    } else {
+        None
+    };
+    let hash_files = calcurate_hashes_of(&file_path_list, &hash_param, progress_sender)
         .await
         .unwrap();
-
     let output = match args.output_format() {
         OutputFormat::JSON => serde_json::to_string(&hash_files).unwrap(),
         OutputFormat::YAML => serde_yaml::to_string(&hash_files).unwrap(),
