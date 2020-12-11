@@ -42,7 +42,6 @@ async fn main() -> Result<()> {
     println!("{}", &output);
     Ok(())
 
-    //TODO: Replace error handling by using anyhow.
     //TODO: Use logger for logging. async-log??
     //TODO: Performance optimization.
     //TODO: Filter the target files by specifing as an arg.

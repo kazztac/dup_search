@@ -10,6 +10,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c0df63cb2955042487fad3aefd2c6e3ae7389ac5dc1beb28921de0b69f779d4"
+
+[[package]]
 name = "apply_method"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -329,6 +335,7 @@ checksum = "134951f4028bdadb9b84baf4232681efbf277da25144b9b0ad65df75946c422b"
 name = "dup_search"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "apply_method",
  "async-recursion",
  "async-std",
