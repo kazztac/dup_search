@@ -6,18 +6,22 @@ use dup_search::Result;
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
 use mpsc::UnboundedReceiver;
+use log::info;
 
 async fn print_progress(mut rx: UnboundedReceiver<usize>, total: usize) {
     let mut progress_count = 0;
     while let Some(recv_count) = rx.next().await {
         progress_count += recv_count;
-        print!("\r{:5} / {:5}", progress_count, total);
+        //print!("\r{:5} / {:5}", progress_count, total);
+        info!("\r{:5} / {:5}", progress_count, total);
     }
-    println!();
+    //println!();
+    info!("\n");
 }
 
 #[async_std::main]
 async fn main() -> Result<()> {
+    pretty_env_logger::init();
     let args = dup_search::args::parse_args().unwrap();
     let hash_param = HashParam {
         algorithm: args.hash_algorithm(),
@@ -42,7 +46,6 @@ async fn main() -> Result<()> {
     println!("{}", &output);
     Ok(())
 
-    //TODO: Use logger for logging. async-log??
     //TODO: Performance optimization.
     //TODO: Filter the target files by specifing as an arg.
     //TODO: Filter the output files depends on args specified as min count and max count.
