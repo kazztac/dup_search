@@ -60,6 +60,13 @@ async fn main() -> Result<()> {
     Ok(())
 
     //TODO: Performance optimization.
+    //  done: 1. The first task will search the file paths and send it by a channel.
+    //  2. If the task find a directory, it spawns a new task searches there.
+    //  3. If the channel notifies new message, it spawns a new task that calcurates the hash of
+    //     the file until the number of the task will be the ulimit size.
+    //  4. The task spawned on #3 retrieves the file path from the storage that be shared each
+    //     tasks.
+    //  5. The task notifies the result of calcuration by using a channel.
     //TODO: Filter the target files by specifing as an arg.
     //TODO: Filter the output files depends on args specified as min count and max count.
 }
