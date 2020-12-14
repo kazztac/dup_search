@@ -1,8 +1,7 @@
 use async_std::task;
 use dup_search::args::OutputFormat;
 use dup_search::hash::{calcurate_hashes_of, HashParam};
-//use dup_search::util::get_file_path_list_in;
-use dup_search::util::get_file_path_list_in2;
+use dup_search::util::get_file_path_list_in;
 use dup_search::Result;
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
@@ -33,11 +32,10 @@ async fn main() -> Result<()> {
     info!("Finish: {:5}ms", start.elapsed().as_millis());
     info!("Start: File search");
     let start = std::time::Instant::now();
-    //    let file_path_list = get_file_path_list_in(args.directory().to_string()).await?;
     let (mut tx, mut rx) = mpsc::unbounded();
     let cloned_folder_path = args.directory().to_string();
     task::spawn(async move {
-        let _ignore = get_file_path_list_in2(&cloned_folder_path, &mut tx).await;
+        let _ignore = get_file_path_list_in(&cloned_folder_path, &mut tx).await;
     });
     let mut file_path_list = vec![];
     while let Some(msg) = rx.next().await {

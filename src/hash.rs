@@ -212,6 +212,19 @@ mod tests {
             .apply(|it| it.sort())
     }
 
+    async fn get_file_path_list() -> Result<Vec<String>> {
+        let (tx, mut rx) = mpsc::unbounded();
+        task::spawn(async move {
+            let _ignore = get_file_path_list_in("./resource/test", &mut tx.clone()).await;
+        });
+        let mut files = vec![];
+        while let Some(msg) = rx.next().await {
+            let file_path = msg.unwrap();
+            files.push(file_path);
+        }
+        Ok(files)
+    }
+
     #[test]
     fn test_calculate_hash_of_file_path_with_md5() {
         task::block_on(async {
@@ -239,9 +252,7 @@ mod tests {
     #[test]
     fn test_calculate_hashes_of_internal_md5() {
         task::block_on(async {
-            let files = get_file_path_list_in("./resource/test".to_string())
-                .await
-                .unwrap();
+            let files = get_file_path_list().await.unwrap();
             let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::MD5);
             let results = calculate_hashes_of_internal(files, param).await;
             assert_eq!(results.len(), EXACT_FILES.len());
@@ -259,9 +270,7 @@ mod tests {
     #[test]
     fn test_calculate_hashes_of_internal_blake3() {
         task::block_on(async {
-            let files = get_file_path_list_in("./resource/test".to_string())
-                .await
-                .unwrap();
+            let files = get_file_path_list().await.unwrap();
             let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::Blake3);
             let results = calculate_hashes_of_internal(files, param).await;
             assert_eq!(results.len(), EXACT_FILES.len());
@@ -280,9 +289,7 @@ mod tests {
     fn test_culcurate_hashes_of_files() {
         task::block_on(async {
             let exact_hashes = generate_exact_hashes(HashAlgorithm::Blake3);
-            let files = get_file_path_list_in("./resource/test".to_string())
-                .await
-                .unwrap();
+            let files = get_file_path_list().await.unwrap();
             let param = HashParam::default();
             let hash_files = calcurate_hashes_of(&files, &param, None).await.unwrap();
             assert_eq!(hash_files.len(), exact_hashes.len());
@@ -302,9 +309,7 @@ mod tests {
     fn test_culcurate_hashes_of_files_with_progress_check() {
         task::block_on(async {
             let exact_hashes = generate_exact_hashes(HashAlgorithm::Blake3);
-            let files = get_file_path_list_in("./resource/test".to_string())
-                .await
-                .unwrap();
+            let files = get_file_path_list().await.unwrap();
             let param = HashParam::default();
             let (tx, mut rx) = mpsc::unbounded();
             let handle =
