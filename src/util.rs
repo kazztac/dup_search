@@ -30,6 +30,29 @@ pub async fn get_file_path_list_in(
     Ok(())
 }
 
+pub fn get_file_limit() -> usize {
+    String::from_utf8_lossy(
+        &std::process::Command::new("ulimit")
+            .arg("-n")
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .parse::<usize>()
+    .map_or_else(
+        |e| {
+            println!(
+                "As couldn't get file limit value, use default value. Error: {}",
+                e
+            );
+            1024usize
+        },
+        |v| v,
+    )
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,5 +90,12 @@ mod tests {
                     .is_some());
             }
         });
+    }
+
+    #[test]
+    #[ignore]
+    fn test_get_file_limit() {
+        let file_limit = get_file_limit();
+        println!("file_limit: {}", file_limit);
     }
 }

@@ -1,4 +1,5 @@
 use crate::args::HashAlgorithm;
+use crate::util::get_file_limit;
 use crate::Result;
 use async_std::fs::File;
 use async_std::io::BufReader;
@@ -22,28 +23,6 @@ impl Default for HashParam {
             buf_size: 1024 * 1024,
         }
     }
-}
-
-fn get_file_limit() -> usize {
-    String::from_utf8_lossy(
-        &std::process::Command::new("ulimit")
-            .arg("-n")
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .trim()
-    .parse::<usize>()
-    .map_or_else(
-        |e| {
-            println!(
-                "As couldn't get file limit value, use default value. Error: {}",
-                e
-            );
-            1024usize
-        },
-        |v| v,
-    )
 }
 
 async fn calculate_hash_of<D: Digest>(file_path: &str, param: &HashParam) -> Result<String> {
@@ -71,6 +50,22 @@ async fn calculate_hashes_of_internal(
 ) -> Vec<(String, String)> {
     let mut result = Vec::with_capacity(file_path_list.len());
     for file_path in file_path_list {
+        let hash = match &param.algorithm {
+            &HashAlgorithm::MD5 => calculate_hash_of::<md5::Md5>(&file_path, &param).await,
+            &HashAlgorithm::Blake3 => calculate_hash_of::<blake3::Hasher>(&file_path, &param).await,
+        }
+        .unwrap();
+        result.push((file_path, hash));
+    }
+    result
+}
+
+pub async fn calculate_hashes_of_internal2(
+    mut rx: mpsc::UnboundedReceiver<String>,
+    param: HashParam,
+) -> Vec<(String, String)> {
+    let mut result = vec![];
+    while let Some(file_path) = rx.next().await {
         let hash = match &param.algorithm {
             &HashAlgorithm::MD5 => calculate_hash_of::<md5::Md5>(&file_path, &param).await,
             &HashAlgorithm::Blake3 => calculate_hash_of::<blake3::Hasher>(&file_path, &param).await,
@@ -286,6 +281,33 @@ mod tests {
     }
 
     #[test]
+    fn test_calculate_hashes_of_internal2_md5() {
+        task::block_on(async {
+            let param = HashParam::default().apply(|it| it.algorithm = HashAlgorithm::MD5);
+            let (tx_file, mut rx_file) = mpsc::unbounded();
+            task::spawn(async move {
+                let _ignore = get_file_path_list_in("./resource/test", &mut tx_file.clone()).await;
+            });
+            let (mut tx_hash, rx_hash) = mpsc::unbounded();
+            task::spawn(async move {
+                while let Some(file_path) = rx_file.next().await {
+                    let _ignore = tx_hash.send(file_path.unwrap()).await;
+                }
+            });
+            let results = calculate_hashes_of_internal2(rx_hash, param).await;
+            assert_eq!(results.len(), EXACT_FILES.len());
+            for exact_item in EXACT_FILES.iter() {
+                let exact_file = exact_item.0;
+                let exact_hash = exact_item.1.get(&HashAlgorithm::MD5).unwrap();
+                let (result_file, result_hash) =
+                    results.iter().find(|it| &it.0 == *exact_file).unwrap();
+                assert_eq!(result_file, exact_file);
+                assert_eq!(result_hash, exact_hash);
+            }
+        });
+    }
+
+    #[test]
     fn test_culcurate_hashes_of_files() {
         task::block_on(async {
             let exact_hashes = generate_exact_hashes(HashAlgorithm::Blake3);
@@ -332,12 +354,5 @@ mod tests {
                 assert_eq!(files, exact_files);
             }
         });
-    }
-
-    #[test]
-    #[ignore]
-    fn test_get_file_limit() {
-        let file_limit = get_file_limit();
-        println!("file_limit: {}", file_limit);
     }
 }
