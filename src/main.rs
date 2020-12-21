@@ -1,6 +1,6 @@
 use async_std::task;
 use dup_search::args::OutputFormat;
-use dup_search::hash::calculate_hashes_of_internal2;
+use dup_search::hash::calculate_hashes_of;
 use dup_search::hash::HashParam;
 use dup_search::util::get_file_limit;
 use dup_search::util::get_file_path_list_in;
@@ -9,17 +9,7 @@ use futures::channel::mpsc;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use log::*;
-use mpsc::UnboundedReceiver;
 use multimap::MultiMap;
-
-async fn _print_progress(mut rx: UnboundedReceiver<usize>, total: usize) {
-    let mut progress_count = 0;
-    while let Some(recv_count) = rx.next().await {
-        progress_count += recv_count;
-        print!("\r{:5} / {:5}", progress_count, total);
-    }
-    println!();
-}
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -53,7 +43,7 @@ async fn main() -> Result<()> {
         let file_path = msg?;
         if hash_senders.len() <= ulimit_file_number {
             let (hash_tx, hash_rx) = mpsc::unbounded();
-            let handle = task::spawn(calculate_hashes_of_internal2(hash_rx, hash_param.clone()));
+            let handle = task::spawn(calculate_hashes_of(hash_rx, hash_param.clone()));
             hash_senders.push((hash_tx, handle));
         }
         hash_senders[hash_sender_index].0.send(file_path).await?;
@@ -67,21 +57,11 @@ async fn main() -> Result<()> {
     let mut hash_files = MultiMap::new();
     for sender in hash_senders {
         sender.0.close_channel();
-        let files = sender.1.await;
+        let files = sender.1.await?;
         for (file_path, hash) in files {
             hash_files.insert(hash, file_path);
         }
     }
-    //    let progress_sender = if args.is_verbose() {
-    //        let (tx, rx) = mpsc::unbounded();
-    //        task::spawn(print_progress(rx, file_path_list.len()));
-    //        Some(tx)
-    //    } else {
-    //        None
-    //    };
-    //    let hash_files = calcurate_hashes_of(&file_path_list, &hash_param, progress_sender)
-    //        .await
-    //        .unwrap();
     debug!("Finish: {:5}ms", start.elapsed().as_millis());
 
     // Output the result

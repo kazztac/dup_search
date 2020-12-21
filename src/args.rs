@@ -54,7 +54,7 @@ impl ProgramArgs {
 
 fn create_app() -> Result<App<'static, 'static>> {
     let app = app_from_crate!()
-        .arg(Arg::from_usage("-v --verbose 'Verbose'"))
+        //.arg(Arg::from_usage("-v --verbose 'Verbose'"))
         .arg(
             Arg::from_usage("-a --algorithm 'Hash algorithm'")
                 .possible_values(&HashAlgorithm::variants())
