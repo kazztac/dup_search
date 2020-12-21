@@ -1,5 +1,5 @@
 [package]
-name = "dup_search"
+name = "dupsearch"
 version = "0.1.0"
 authors = ["kazztac <42577573+kazztac@users.noreply.github.com>"]
 edition = "2018"

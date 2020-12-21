@@ -1,10 +1,10 @@
 use async_std::task;
-use dup_search::args::OutputFormat;
-use dup_search::hash::calculate_hashes_of;
-use dup_search::hash::HashParam;
-use dup_search::util::get_file_limit;
-use dup_search::util::get_file_path_list_in;
-use dup_search::Result;
+use dupsearch::args::OutputFormat;
+use dupsearch::hash::calculate_hashes_of;
+use dupsearch::hash::HashParam;
+use dupsearch::util::get_file_limit;
+use dupsearch::util::get_file_path_list_in;
+use dupsearch::Result;
 use futures::channel::mpsc;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     debug!("Start: Arg setup");
     let total_start = std::time::Instant::now();
     let start = std::time::Instant::now();
-    let args = dup_search::args::parse_args().unwrap();
+    let args = dupsearch::args::parse_args().unwrap();
     let hash_param = HashParam {
         algorithm: args.hash_algorithm(),
         buf_size: 1024 * 1024,
